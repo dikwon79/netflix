@@ -21,18 +21,18 @@ const SliderTitle = styled.h3`
 interface SliderProps {
   title: string;
   data: IGetMoviesResult | IApiResponse | undefined;
-  onBoxClick: (movieId: number) => void;
+  onBoxClick: (tvId: number) => void;
 }
 
 const Row = styled(motion.div)`
   display: grid;
   gap: 5px;
   grid-template-columns: repeat(6, 1fr);
-  //margin-bottom: 5px;  3개의 row가 일직선상에 있어야 해서 이걸 지우고 postion을 절대값으로 한다.
   position: absolute;
   width: 100%;
   padding-left: 20px;
 `;
+
 const rowVariants = {
   hidden: {
     x: window.outerWidth,
@@ -68,7 +68,6 @@ const BoxVariants = {
   },
   hover: {
     y: -50,
-
     scale: 1.3,
     transition: {
       delay: 0.5,
@@ -90,6 +89,7 @@ const Info = styled(motion.div)`
     font-size: 18px;
   }
 `;
+
 const infoVariants = {
   hover: {
     opacity: 1,
@@ -125,7 +125,7 @@ const ArrowButton = styled(motion.div)`
   }
 `;
 
-export const MovieSlider = ({ title, data, onBoxClick }: SliderProps) => {
+export const TvSlider = ({ title, data, onBoxClick }: SliderProps) => {
   const [index, setIndex] = useState(0);
   const [leaving, setLeaving] = useState(false);
 
@@ -138,13 +138,21 @@ export const MovieSlider = ({ title, data, onBoxClick }: SliderProps) => {
       if (leaving) return;
       toggleLeaving();
 
-      const totalMovies = data.results.length - 1; // 첫 영화는 배너에 사용
-      const maxIndex = Math.ceil(totalMovies / offset) - 1;
+      const totalShows = data.results.length - 1; // 첫 번째 TV 프로그램은 배너에 사용
+      const maxIndex = Math.ceil(totalShows / offset) - 1;
 
       setIndex((prev) => (prev === maxIndex ? 0 : prev + 1));
     }
   };
 
+  if (!data || !data.results || data.results.length === 0) {
+    return (
+      <Slider>
+        <SliderTitle>{title}</SliderTitle>
+        <p>No data available</p>
+      </Slider>
+    );
+  }
   return (
     <Slider>
       <SliderTitle>{title}</SliderTitle>
@@ -161,19 +169,19 @@ export const MovieSlider = ({ title, data, onBoxClick }: SliderProps) => {
           {data?.results
             .slice(1)
             .slice(offset * index, offset * index + offset)
-            .map((movie) => (
+            .map((tv) => (
               <Box
-                layoutId={movie.id + ""}
-                key={movie.id}
+                layoutId={tv.id + ""}
+                key={tv.id}
                 whileHover="hover"
                 initial="normal"
                 variants={BoxVariants}
-                onClick={() => onBoxClick(movie.id)}
+                onClick={() => onBoxClick(tv.id)}
                 transition={{ type: "tween" }}
-                bgPhoto={makeImagePath(movie.backdrop_path, "w500")}
+                bgPhoto={makeImagePath(tv.backdrop_path, "w500")}
               >
                 <Info variants={infoVariants}>
-                  <h4>{isMovie(movie) ? movie.title : movie.name}</h4>
+                  <h4>{isMovie(tv) ? tv.title : tv.name}</h4>
                 </Info>
               </Box>
             ))}

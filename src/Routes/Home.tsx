@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { getMovies, IGetMoviesResult } from "../api";
+import { getApi, IGetMoviesResult } from "../api";
 import styled from "styled-components";
 import { makeImagePath } from "../utils";
 import { motion, AnimatePresence, useScroll } from "framer-motion";
 import { useState } from "react";
 import { useHistory, useRouteMatch } from "react-router-dom";
+import { MovieSlider } from "../Components/MovieSlider";
 
 const Wrapper = styled.div`
   background: black;
@@ -39,19 +40,19 @@ const Overview = styled.p`
   width: 50%;
 `;
 
-const Slider = styled.div`
-  position: relative;
-  top: -100px;
+const SlidersContainer = styled.div`
+  display: flex;
+  flex-direction: column; /* 세로로 쌓기 */
+  gap: 20px; /* 슬라이더 간 간격 */
+  width: 100%; /* 전체 너비로 설정 */
+  position: absolute; /* 자식의 절대 위치를 부모 기준으로 설정 */
 `;
-const Row = styled(motion.div)`
-  display: grid;
-  gap: 5px;
-  grid-template-columns: repeat(6, 1fr);
-  //margin-bottom: 5px;  3개의 row가 일직선상에 있어야 해서 이걸 지우고 postion을 절대값으로 한다.
-  position: absolute;
-  width: 100%;
+// Optional: MovieSlider wrapper for specific styling
+const SliderWrapper = styled.div`
+  width: 100%; /* 슬라이더가 부모 컨테이너를 채우도록 설정 */
+  position: relative; /* 기본값: 겹침 방지 */
+  height: 300px;
 `;
-
 const Box = styled(motion.div)<{ bgPhoto: string }>`
   background-color: white;
   background-image: url(${(props) => props.bgPhoto});
@@ -115,34 +116,6 @@ const BigOverview = styled.p`
   position: relative;
   top: -80px;
 `;
-const rowVariants = {
-  hidden: {
-    x: window.outerWidth,
-  },
-  visible: {
-    x: 0,
-  },
-  exit: {
-    x: -window.outerWidth,
-  },
-};
-
-const offset = 6;
-const BoxVariants = {
-  normal: {
-    scale: 1,
-  },
-  hover: {
-    y: -50,
-
-    scale: 1.3,
-    transition: {
-      delay: 0.5,
-      duration: 0.3,
-      type: "tween",
-    },
-  },
-};
 
 const Overlay = styled(motion.div)`
   position: fixed;
@@ -152,17 +125,34 @@ const Overlay = styled(motion.div)`
   background-color: rgba(0, 0, 0, 0.5);
   opacity: 0;
 `;
-const infoVariants = {
-  hover: {
-    opacity: 1,
-    transition: {
-      delay: 0.5,
-      duration: 0.3,
-      type: "tween",
-    },
-  },
-};
+const ActionButton = styled.button`
+  padding: 12px 24px;
+  background-color: ${(props) => props.theme.main};
+  color: ${(props) => props.theme.white};
+  font-size: 16px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
 
+  &:hover {
+    background-color: ${(props) => props.theme.accent};
+    transform: translateY(-4px);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+`;
+
+const ActionButtons = styled.div`
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 20px;
+`;
 function Home() {
   const history = useHistory();
 
@@ -170,80 +160,86 @@ function Home() {
 
   const { scrollY } = useScroll();
 
-  const { data, isLoading } = useQuery<IGetMoviesResult>({
-    queryKey: ["movies", "nowPlaying"],
-    queryFn: getMovies,
-  });
-  const [index, setIndex] = useState(0);
-  const [leaving, setLeaving] = useState(false);
-
-  const incraseIndex = () => {
-    if (data) {
-      if (leaving) return;
-      toggleLeaving();
-
-      const totalMovies = data.results.length - 1; // 첫번쨰 무비는 대화면에 보여주므로
-      const maxIndex = Math.ceil(totalMovies / offset) - 1; //page가 0부터 시작
-
-      setIndex((prev) => (prev === maxIndex ? 1 : prev + 1));
-    }
-  };
-
-  const toggleLeaving = () => setLeaving((prev) => !prev);
   const onBoxClicked = (movieId: number) => {
     history.push(`/movies/${movieId}`);
   };
 
   const onOverlayClicked = () => history.push("/");
 
+  const useMultipleQuery = () => {
+    const now = useQuery<IGetMoviesResult>({
+      queryKey: ["movies", "nowPlaying"],
+      queryFn: () => getApi("now_playing", "movie"),
+    });
+    const latest = useQuery<IGetMoviesResult>({
+      queryKey: ["latest", "latest"],
+      queryFn: () => getApi("latest", "movie"),
+    });
+    const topRated = useQuery<IGetMoviesResult>({
+      queryKey: ["topRated", "topRated"],
+      queryFn: () => getApi("top_rated", "movie"),
+    });
+    const upcoming = useQuery<IGetMoviesResult>({
+      queryKey: ["upcoming", "upcoming"],
+      queryFn: () => getApi("upcoming", "movie"),
+    });
+
+    return [now, latest, topRated, upcoming];
+  };
+
+  const [
+    { isLoading: loadingnow, data: nowData },
+    { isLoading: loadingLatest, data: latestData },
+    { isLoading: loadingTopRated, data: topRatedData },
+    { isLoading: loadingUpComming, data: upCommingData },
+  ] = useMultipleQuery();
+
   const clickedMovie =
     bigMovieMAtch?.params.movieId &&
-    data?.results.find((movie) => movie.id === +bigMovieMAtch.params.movieId);
+    (nowData?.results.find(
+      (movie) => movie.id === +bigMovieMAtch.params.movieId
+    ) ||
+      topRatedData?.results.find(
+        (movie) => movie.id === +bigMovieMAtch.params.movieId
+      ) ||
+      upCommingData?.results.find(
+        (movie) => movie.id === +bigMovieMAtch.params.movieId
+      ));
   return (
     <Wrapper>
-      {isLoading ? (
+      {loadingnow || loadingLatest || loadingTopRated || loadingUpComming ? (
         <Loader>Loading....</Loader>
       ) : (
         <>
           <Banner
-            onClick={incraseIndex}
-            bgPhoto={makeImagePath(data?.results[0].backdrop_path || "")}
+            bgPhoto={makeImagePath(nowData?.results[0].backdrop_path || "")}
           >
-            <Title>{data?.results[0].title}</Title>
-            <Overview>{data?.results[0].overview}</Overview>
+            <Title>{nowData?.results[0].title}</Title>
+            <Overview>{nowData?.results[0].overview}</Overview>
           </Banner>
-          <Slider>
-            <AnimatePresence initial={false} onExitComplete={toggleLeaving}>
-              <Row
-                variants={rowVariants}
-                initial="hidden"
-                animate="visible"
-                exit="exit"
-                transition={{ type: "tween", duration: 1 }}
-                key={index}
-              >
-                {data?.results
-                  .slice(1)
-                  .slice(offset * index, offset * index + offset)
-                  .map((movie) => (
-                    <Box
-                      layoutId={movie.id + ""}
-                      key={movie.id}
-                      whileHover="hover"
-                      initial="normal"
-                      variants={BoxVariants}
-                      onClick={() => onBoxClicked(movie.id)}
-                      transition={{ type: "tween" }}
-                      bgPhoto={makeImagePath(movie.backdrop_path, "w500")}
-                    >
-                      <Info variants={infoVariants}>
-                        <h4>{movie.title}</h4>
-                      </Info>
-                    </Box>
-                  ))}
-              </Row>
-            </AnimatePresence>
-          </Slider>
+          <SlidersContainer>
+            <SliderWrapper>
+              <MovieSlider
+                title="Now Playing"
+                data={nowData}
+                onBoxClick={onBoxClicked}
+              />
+            </SliderWrapper>
+            <SliderWrapper>
+              <MovieSlider
+                title="Top Rated"
+                data={topRatedData}
+                onBoxClick={onBoxClicked}
+              />
+            </SliderWrapper>
+            <SliderWrapper>
+              <MovieSlider
+                title="Upcoming"
+                data={upCommingData}
+                onBoxClick={onBoxClicked}
+              />
+            </SliderWrapper>
+          </SlidersContainer>
           <AnimatePresence>
             {bigMovieMAtch ? (
               <>
@@ -268,6 +264,18 @@ function Home() {
                       />
                       <BigTitle>{clickedMovie.title}</BigTitle>
                       <BigOverview>{clickedMovie.overview}</BigOverview>
+
+                      {/* 액션 버튼 추가 */}
+                      <ActionButtons>
+                        <ActionButton onClick={() => alert("Watch now!")}>
+                          Watch Now
+                        </ActionButton>
+                        <ActionButton
+                          onClick={() => alert("Add to favorites!")}
+                        >
+                          Add to Favorites
+                        </ActionButton>
+                      </ActionButtons>
                     </>
                   )}
                 </BigMovie>
