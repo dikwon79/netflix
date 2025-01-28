@@ -6,7 +6,7 @@ import Header from "./Components/Header";
 
 function App() {
   return (
-    <Router basename={process.env.PUBLIC_URL}>
+    <Router basename={process.env.PUBLIC_URL || "/"}>
       <Header />
       <Switch>
         <Route path={["/tv", "/tv/:tvId"]}>
